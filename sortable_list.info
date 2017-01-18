@@ -1,0 +1,7 @@
+name = Sortable List
+description = Provides a new field type to allow for a pre-determined set of data in a list format to be sorted on a field instance level.
+core = 7.x
+package = Sortable List
+version = 7.x-1.0
+
+dependencies[] = field
