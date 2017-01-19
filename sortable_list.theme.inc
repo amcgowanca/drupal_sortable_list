@@ -7,44 +7,32 @@
 /**
  * @param $variables
  */
-function theme_sortable_list_field_data_items_ui($variables) {
+function theme_sortable_list($variables) {
   $elements = $variables['elements'];
-  $table = array();
+  $table_element = array();
 
   foreach (array('header', 'attributes') as $key) {
     if (isset($elements['#' . $key])) {
-      $table[$key] = $elements['#' . $key];
+      $table_element[$key] = $elements['#' . $key];
     }
   }
 
-  foreach (element_children($elements) as $row_key) {
+  foreach (element_children($elements) as $item_index) {
     $row = array('data' => array());
-    if (isset($elements[$row_key]['#attributes'])) {
-      $row += $elements[$row_key]['#attributes'];
+    if (isset($elements[$item_index]['#attributes'])) {
+      $row += $elements[$item_index]['#attributes'];
     }
 
-    foreach (element_children($elements[$row_key]) as $cell_key) {
-      $child = $elements[$row_key][$cell_key];
+    foreach (element_children($elements[$item_index]) as $cell_key) {
+      $child = $elements[$item_index][$cell_key];
       $cell = array('data' => drupal_render($child));
       if (isset($child['#cell_attributes'])) {
         $cell += $child['#cell_attributes'];
       }
       $row['data'][] = $cell;
     }
-
-    $table['rows'][] = $row;
+    $table_element['rows'][] = $row;
   }
 
-  $output = array(
-    '#type' => 'container',
-    'data_table' => array(
-      '#type' => 'markup',
-      '#markup' => theme('table', $table),
-    ),
-  );
-  if (isset($elements['actions'])) {
-    $output['actions'] = $elements['actions'];
-  }
-
-  return drupal_render($output);
+  return theme('table', $table_element);
 }
