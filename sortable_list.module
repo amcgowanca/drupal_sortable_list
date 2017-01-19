@@ -3,3 +3,263 @@
  * @file
  * sortable_list.module
  */
+
+if (!function_exists('anon')) { function anon() { } }
+
+/**
+ * Implements hook_theme().
+ */
+function sortable_list_theme() {
+  return array(
+    'sortable_list_field_data_items_ui' => array(
+      'render element' => 'elements',
+      'file' => 'sortable_list.theme.inc',
+    ),
+  );
+}
+
+/**
+ * Implements hook_element_info().
+ */
+function sortable_list_element_info() {
+  return array(
+    'sortable_list_field_data_items' => array(
+      '#theme' => 'sortable_list_field_data_items_ui',
+      '#pre_render' => array(),
+      '#element_validate' => array('sortable_list_field_data_items_validate'),
+      '#submit' => array('sortable_list_field_data_items_submit'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_info().
+ */
+function sortable_list_field_info() {
+  return array(
+    'sortable_list' => array(
+      'label' => t('Sortable list'),
+      'description' => t('Allows for sorting of a pre-determined list of data.'),
+      'settings' => array(),
+      'instance_settings' => array(),
+      'default_widget' => 'sortable_list_default',
+      'default_formatter' => 'sortable_list_default',
+      // This is a special element that is used within the hook_form_alter() for
+      // overriding the field settings to only allow the cardinality to only be
+      // specified as a single element due to the behavior of this field type.
+      'cardinality_override' => array(
+        'value' => 1,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_settings_form().
+ */
+function sortable_list_field_settings_form($field, $instance, $has_data) {
+  $form = array();
+  $form['sortable_list_data'] = sortable_list_field_data_items_table_builder();
+  $form['sortable_list_data_actions'] = array(
+    '#type' => 'actions',
+    '#weight' => -5,
+  );
+  $form['sortable_list_data_actions']['add_new_row'] = array(
+    '#type' => 'submit',
+    '#value' => t('Add new row'),
+    '#ajax' => array(
+      'callback' => 'sortable_list_field_data_items_table_ajax_callback',
+      'wrapper' => 'sortable-list-field-data-items-table-wrapper',
+    ),
+  );
+  return $form;
+}
+
+function sortable_list_field_data_items_table_ajax_callback($form, &$form_state) {
+  $items = array();
+  if (isset($form_state['values']['field']['settings']['sortable_list_data'])) {
+    $form_values = &$form_state['values']['field']['settings']['sortable_list_data'];
+    if (isset($form_values['_add_new'])) {
+      $new_item_values = $form_values['_add_new'];
+      unset($form_values['_add_new']);
+
+      $items[] = array(
+        'weight' => (int) $new_item_values['weight'],
+        'value' => check_plain($new_item_values['value']),
+        'label' => check_plain($new_item_values['label']),
+      );
+    }
+  }
+  return sortable_list_field_data_items_table_builder($items);
+}
+
+function sortable_list_field_data_items_table_builder(array $items = array(), array $add_new_defaults = array()) {
+  $element_data_items = array(
+    '#type' => 'sortable_list_field_data_items',
+    '#header' => array(
+      t('Weight'),
+      t('Value'),
+      t('Label'),
+      t('Operations'),
+    ),
+    '#weight' => -10,
+    '#attributes' => array('id' => 'sortable-list-field-data-items-table'),
+    '#prefix' => '<div id="sortable-list-field-data-items-table-wrapper">',
+    '#suffix' => '</div>',
+  );
+
+  foreach ($items as $index => $item) {
+    $item['value'] = $item['label'] == $item['value'] ? '' : $item['value'];
+    $row = array(
+      'weight' => array(
+        '#type' => 'textfield',
+        '#title' => t('Row weight'),
+        '#title_display' => 'invisible',
+        '#size' => 3,
+        '#default_value' => isset($item['weight']) ? $item['weight'] : 0,
+        '#attributes' => array('class' => array('item-weight')),
+      ),
+      'value' => array(
+        '#type' => 'textfield',
+        '#title' => t('Value'),
+        '#title_display' => 'invisible',
+        '#description' => t('The value.'),
+        '#size' => 60,
+        '#default_value' => isset($item['value']) ? check_plain($item['value']) : '',
+      ),
+      'label' => array(
+        '#type' => 'textfield',
+        '#title' => t('Label'),
+        '#title_display' => 'invisible',
+        '#description' => t('The text displayed to users'),
+        '#size' => 60,
+        '#default_value' => isset($item['label']) ? check_plain($item['label']) : '',
+      ),
+      'operations' => array(),
+    );
+    $element_data_items[$index] = $row;
+  }
+
+  $max_weight = 0;
+
+  $add_new_defaults += array(
+    'weight' => $max_weight + 1,
+    'label' => '',
+    'value' => '',
+  );
+
+  $element_data_items['_add_new'] = array(
+    'weight' => array(
+      '#type' => 'textfield',
+      '#title' => t('Row weight'),
+      '#title_display' => 'invisible',
+      '#size' => 3,
+      '#default_value' => $max_weight + 1,
+      '#attributes' => array('class' => array('item-weight')),
+    ),
+    'value' => array(
+      '#type' => 'textfield',
+      '#title' => t('Value'),
+      '#title_display' => 'invisible',
+      '#description' => t('The value.'),
+      '#size' => 60,
+      '#default_value' => '',
+    ),
+    'label' => array(
+      '#type' => 'textfield',
+      '#title' => t('Label'),
+      '#title_display' => 'invisible',
+      '#description' => t('The text displayed to users'),
+      '#size' => 60,
+      '#default_value' => '',
+    ),
+    'operations' => array(),
+  );
+  $element_data_items['#attached']['drupal_add_tabledrag'][] = array(
+    'sortable-list-field-data-items-table',
+    'order',
+    'sibling',
+    'item-weight',
+  );
+  return $element_data_items;
+}
+
+function sortable_list_field_data_items_validate($form, &$form_state) {
+  // We do not want the actions element to be saved as a setting with the field
+  // settings. Therefore, we need to ensure that this is deleted from the posted
+  // values that are processed and saved.
+  if (isset($form_state['values']['field']['settings']['sortable_list_data_actions'])) {
+    unset($form_state['values']['field']['settings']['sortable_list_data_actions']);
+  }
+}
+
+function sortable_list_field_data_items_submit($form, &$form_state) {
+  drupal_set_message(t('Test message from ' . __FUNCTION__));
+  anon();
+}
+
+/**
+ * Implements hook_field_widget_info().
+ */
+function sortable_list_field_widget_info() {
+  return array(
+    'sortable_list_default' => array(
+      'label' => t('Default'),
+      'description' => t('Provides the ability to sort the specified data.'),
+      'field types' => array('sortable_list'),
+      'settings' => array(),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_widget_form().
+ */
+function sortable_list_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+  $element += array(
+    '#type' => $instance['widget']['type'],
+  );
+  switch ($instance['widget']['type']) {
+    case 'sortable_list_default':
+      break;
+  }
+  return $element;
+}
+
+/**
+ * Implements hook_field_formatter_info().
+ */
+function sortable_list_field_formatter_info() {
+  return array(
+    'sortable_list_sorted_list' => array(
+      'label' => t('Sorted list'),
+      'field types' => array('sortable_list'),
+    )
+  );
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ */
+function sortable_list_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+  $element = array();
+  switch ($display['type']) {
+    case 'sortable_list_sorted_list':
+      break;
+  }
+  return $element;
+}
+
+/**
+ * Implements hook_field_load().
+ */
+function sortable_list_field_load($entity_type, $entities, $field, $instances, $langcode, &$items, $age) {
+  // TODO: Implement.
+}
+
+/**
+ * Implements hook_field_delete_instance().
+ */
+function sortable_list_field_delete_instance($instance) {
+  // TODO: Implement - deletion of associated data in tables.
+}

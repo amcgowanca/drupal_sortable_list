@@ -3,3 +3,64 @@
  * @file
  * sortable_list.install
  */
+
+/**
+ * Implements hook_schema().
+ */
+function sortable_list_schema() {
+  $schema = array();
+  $schema['sortable_list_data'] = array(
+    'description' => 'Represents a single item that is sortable within a sortable list field.',
+    'fields' => array(
+      'id' => array(
+        'description' => 'The primary key.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'field_id' => array(
+        'description' => 'The {field_config_instance}.id value in which this data belongs too.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'value' => array(
+        'description' => 'The value which this list item represents.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'label' => array(
+        'description' => 'The label of this list item which is displayed to the user.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'weight' => array(
+        'description' => 'The default weight value for ordering the initial list of data.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'foreign keys' => array(
+      'field_instance_id' => array(
+        'table' => 'field_config_instance',
+        'columns' => array('field_id' => 'id'),
+      ),
+    ),
+    'primary key' => array('id')
+  );
+  return $schema;
+}
+
+/**
+ * Implements hook_field_schema().
+ */
+function sortable_list_field_schema() {
+  return array();
+}
