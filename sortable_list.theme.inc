@@ -10,10 +10,10 @@
 function theme_sortable_list($variables) {
   $elements = $variables['elements'];
   $table_element = array();
-
   foreach (array('header', 'attributes') as $key) {
     if (isset($elements['#' . $key])) {
       $table_element[$key] = $elements['#' . $key];
+      unset($elements['#' . $key]);
     }
   }
 
@@ -32,7 +32,9 @@ function theme_sortable_list($variables) {
       $row['data'][] = $cell;
     }
     $table_element['rows'][] = $row;
+    unset($elements[$item_index]);
   }
 
-  return theme('table', $table_element);
+  $elements['#children'] = theme('table', $table_element);
+  return theme('form_element', $elements);
 }
