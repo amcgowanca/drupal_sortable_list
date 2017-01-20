@@ -3,3 +3,312 @@
  * @file
  * sortable_list.module
  */
+
+/**
+ * Implements hook_field_info().
+ */
+function sortable_list_field_info() {
+  return array(
+    'sortable_list' => array(
+      'label' => t('Sortable list'),
+      'description' => t('Allows for sorting of a pre-determined list of data.'),
+      'settings' => array(),
+      'instance_settings' => array(),
+      'default_widget' => 'sortable_list_default',
+      'default_formatter' => 'sortable_list_default',
+      // This is a special element that is used within the hook_form_alter() for
+      // overriding the field settings to only allow the cardinality to only be
+      // specified as a single element due to the behavior of this field type.
+      'cardinality_override' => array(
+        'value' => FIELD_CARDINALITY_UNLIMITED,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_settings_form().
+ */
+function sortable_list_field_settings_form($field, $instance, $has_data) {
+  $form = array();
+
+  if (!isset($field['settings']['sortable_list_data'])) {
+    $field['settings']['sortable_list_data'] = array();
+  }
+
+  $form['sortable_list_data'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Values list to sort'),
+    '#description' => t('Each item should be listed on its own line. The default ordering and configuration of these items will be dependent upon how they are entered in this list.'),
+    '#default_value' => sortable_list_allowed_values_as_string($field['settings']['sortable_list_data']),
+    '#rows' => 10,
+    '#element_validate' => array('sortable_list_field_settings_items_list_data_validate'),
+    '#field_has_data' => $has_data,
+    '#field' => $field,
+    '#field_type' => $field['type'],
+    '#disabled' => $has_data,
+  );
+  return $form;
+}
+
+function sortable_list_field_settings_items_list_data_validate($element, &$form_state) {
+  $field = $element['#field'];
+  $has_data = $element['#field_has_data'];
+  $field_type = $field['type'];
+
+  $values = sortable_list_extract_allowed_values($element['#value']);
+  if (!is_array($values)) {
+    form_error($element, t('Allowed values list: invalid input.'));
+  }
+  else {
+    foreach ($values as $key => $value) {
+      if (255 < drupal_strlen($key)) {
+        form_error($element, t('Allowed values list: each key must be a string no longer than 255 characters.'));
+      }
+    }
+  }
+
+  form_set_value($element, $values, $form_state);
+}
+
+function sortable_list_extract_allowed_values($string) {
+  $values = array();
+
+  $list = explode("\n", $string);
+  $list = array_map('trim', $list);
+  $list = array_filter($list, 'drupal_strlen');
+
+  foreach ($list as $position => $text) {
+    $value = $key = FALSE;
+    // Check for an explicitly defined key.
+    $matches = array();
+    if (preg_match('/(.*)\|(.*)/', $text, $matches)) {
+      $key = $matches[1];
+      $value = $matches[2];
+    }
+    else {
+      $key = $value = $text;
+    }
+
+    $values[$key] = $value;
+  }
+
+  return $values;
+}
+
+function sortable_list_allowed_values_as_string(array $values) {
+  $lines = array();
+  foreach ($values as $key => $value) {
+    $lines[] = $key . '|' . $value;
+  }
+  return implode("\n", $lines);
+}
+
+/**
+ * Implements hook_field_is_empty().
+ */
+function sortable_list_field_is_empty($item, $field) {
+  return FALSE;
+}
+
+/**
+ * Implements hook_field_widget_info().
+ */
+function sortable_list_field_widget_info() {
+  return array(
+    'sortable_list_default' => array(
+      'label' => t('Default'),
+      'description' => t('Provides the ability to sort the specified data.'),
+      'field types' => array('sortable_list'),
+      'behaviors' => array(
+        'multiple values' => FIELD_BEHAVIOR_CUSTOM,
+        'default value' => FIELD_BEHAVIOR_NONE,
+      ),
+      'settings' => array(),
+    ),
+  );
+}
+
+/**
+ * Implements hook_theme().
+ */
+function sortable_list_theme($existing, $type, $theme, $path) {
+  return array(
+    'sortable_list' => array(
+      'render element' => 'elements',
+      'file' => 'sortable_list.theme.inc',
+    ),
+  );
+}
+
+/**
+ * Implements hook_element_info().
+ */
+function sortable_list_element_info() {
+  return array(
+    'sortable_list' => array(
+      '#theme' => 'sortable_list',
+      '#pre_render' => array(),
+      '#element_validate' => array('sortable_list_validate'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_widget_form().
+ */
+function sortable_list_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+  if (empty($items)) {
+    if (!isset($field['settings']['sortable_list_data'])) {
+      $field['settings']['sortable_list_data'] = array();
+    }
+    $weight = 0;
+    $sortable_items = array();
+    foreach ($field['settings']['sortable_list_data'] as $value => $label) {
+      $weight = $weight + 1;
+      $sortable_items[] = array(
+        'label' => check_plain($label),
+        'value' => $value,
+        'weight' => $weight,
+      );
+    }
+    unset($weight);
+  }
+  else {
+    $sortable_items = array();
+    foreach ($items as $index => $item) {
+      if (isset($field['settings']['sortable_list_data'][$item['value']])) {
+        $sortable_items[] = array(
+          'label' => check_plain($field['settings']['sortable_list_data'][$item['value']]),
+          'value' => $item['value'],
+          'weight' => $item['weight'],
+        );
+      }
+    }
+  }
+  uasort($sortable_items, 'drupal_sort_weight');
+
+  $element += array(
+    '#type' => 'sortable_list',
+    '#attributes' => array('id' => 'sortable-list-field'),
+    '#header' => array(
+      'label' => array('data' => t('Item label')),
+      'weight' => array('data' => t('Weight')),
+    ),
+  );
+
+  switch ($instance['widget']['type']) {
+    case 'sortable_list_default':
+      foreach ($sortable_items as $index => $item) {
+        $element_item = array(
+          '#attributes' => array('class' => array('draggable', 'tabledrag-leaf')),
+          'value' => array(
+            '#type' => 'hidden',
+            '#value' => $item['value'],
+            '#prefix' => '<div class="item-label">' . $item['label'] . '</div>',
+          ),
+          'weight' => array(
+            '#type' => 'textfield',
+            '#title' => t('Item weight'),
+            '#title_display' => 'invisible',
+            '#size' => 3,
+            '#default_value' => $item['weight'],
+            '#attributes' => array('class' => array('sortable-list-item-weight')),
+            '#cell_attributes' => array('style' => 'width: 5%'),
+          ),
+        );
+        $element[] = $element_item;
+      }
+      $element['#attached']['drupal_add_tabledrag'][] = array('sortable-list-field', 'order', 'sibling', 'sortable-list-item-weight');
+      break;
+  }
+  return $element;
+}
+
+/**
+ * Element validation callback; validates the sortable list element.
+ *
+ * @param array $element
+ *   The element to validate.
+ * @param array $form_state
+ *   The current form's state.
+ */
+function sortable_list_validate($element, &$form_state) {
+  $values = array();
+  foreach (element_children($element) as $item_index) {
+    $item = $element[$item_index];
+    if (!empty($item['value']['#value'])) {
+      $values[$item_index] = array(
+        'value' => $item['value']['#value'],
+        'weight' => isset($item['weight']['#value']) ? $item['weight']['#value'] : 0,
+      );
+    }
+    else {
+      return form_error($element, t('Sortable list option: invalid value'));
+    }
+  }
+  // Sort the submitted values by their `weight` property to ensure correct
+  // ordering prior to checking for their #required state.
+  uasort($values, 'drupal_sort_weight');
+  // If the field is required, verify that the order of the items are not
+  // identical to the default order.
+  if ($element['#required']) {
+    $field = field_info_field($element['#field_name']);
+    $default_values = element_children($field['settings']['sortable_list_data']);
+    foreach (element_children($values) as $index => $key) {
+      $item = $values[$key];
+      if (isset($default_values[$index])) {
+        if ($default_values[$index] == $item['value']) {
+          form_error($element, t('%label is required and therefore options must be resorted and cannot have the same ordering as the default values.', array('%label' => $element['#title'])));
+        }
+      }
+    }
+  }
+
+  form_set_value($element, $values, $form_state);
+}
+
+/**
+ * Implements hook_field_formatter_info().
+ */
+function sortable_list_field_formatter_info() {
+  return array(
+    'sortable_list_default' => array(
+      'label' => t('Sorted list'),
+      'field types' => array('sortable_list'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ */
+function sortable_list_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+  $element = array(
+    '#theme' => 'item_list',
+    '#items' => array(),
+  );
+  foreach ($items as $item_index => $item) {
+    if (isset($field['settings']['sortable_list_data'][$item['value']])) {
+      $element['#items'][] = check_plain($field['settings']['sortable_list_data'][$item['value']]);
+    }
+  }
+  return $element;
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function sortable_list_form_alter(&$form, &$form_state, $form_id) {
+  if ('field_ui_field_edit_form' == $form_id) {
+    if ('sortable_list' == $form['#field']['type']) {
+      if (isset($form['field']['cardinality'])) {
+        unset($form['field']['cardinality']);
+        $form['field']['cardinality'] = array(
+          '#type' => 'value',
+          '#value' => FIELD_CARDINALITY_UNLIMITED,
+        );
+      }
+    }
+  }
+}

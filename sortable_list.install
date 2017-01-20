@@ -3,3 +3,29 @@
  * @file
  * sortable_list.install
  */
+
+/**
+ * Implements hook_field_schema().
+ */
+function sortable_list_field_schema($field) {
+  $columns = array(
+    'value' => array(
+      'type' => 'varchar',
+      'length' => 255,
+      'not null' => FALSE,
+    ),
+    'weight' => array(
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => FALSE,
+      'default' => 0,
+    ),
+  );
+  return array(
+    'columns' => $columns,
+    'indexes' => array(
+      'value' => array('value'),
+      'weight' => array('weight'),
+    )
+  );
+}
