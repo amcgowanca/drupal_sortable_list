@@ -4,4 +4,4 @@ Provides a new field type to allow for a pre-determined set of data in a list fo
 
 ### License
 
-The Entity Field Reference module is licensed under the [GNU General Public License](./LICENSE.md) version 2.
+This Drupal contributed module is licensed under the [GNU General Public License](./LICENSE.md) version 2.
